@@ -60,16 +60,11 @@ public class TrayIcon: NSView {
         ]
         
         if let button = statusItem?.button {
-            button.addSubview(self)
-            self.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([
-                self.leadingAnchor.constraint(equalTo: button.leadingAnchor),
-                self.trailingAnchor.constraint(equalTo: button.trailingAnchor),
-                self.topAnchor.constraint(equalTo: button.topAnchor),
-                self.bottomAnchor.constraint(equalTo: button.bottomAnchor),
-                self.heightAnchor.constraint(equalToConstant: NSStatusBar.system.thickness),
-            ])
-            setupView()
+            // ponytail: native status bar button avoids AppKit snapshotting a custom view.
+            button.target = self
+            button.action = #selector(statusItemButtonClicked(sender:))
+            button.sendAction(on: [.leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp])
+            button.imagePosition = .imageLeading
         }
     }
     
@@ -103,9 +98,9 @@ public class TrayIcon: NSView {
     }
     
     public func setImage(_ image: NSImage, _ imagePosition: String) {
-        imageView.image = image
-        imageView.isHidden = false
         if let button = statusItem?.button {
+            button.image = image
+            button.imagePosition = .imageLeading
             button.sizeToFit()
         }
     }
@@ -116,13 +111,11 @@ public class TrayIcon: NSView {
     
     public func removeImage() {
         statusItem?.button?.image = nil
-        self.frame = statusItem!.button!.frame
     }
     
     public func setTitle(_ title: String) {
-        textField.attributedStringValue = NSAttributedString(string: title, attributes: textAttributes)
-        textField.isHidden = title.isEmpty
         if let button = statusItem?.button {
+            button.attributedTitle = NSAttributedString(string: title, attributes: textAttributes)
             button.sizeToFit()
         }
     }
@@ -135,19 +128,37 @@ public class TrayIcon: NSView {
     
     public override func mouseDown(with event: NSEvent) {
         statusItem?.button?.highlight(true)
-        self.onTrayIconMouseDown!()
+        self.onTrayIconMouseDown?()
     }
     
     public override func mouseUp(with event: NSEvent) {
         statusItem?.button?.highlight(false)
-        self.onTrayIconMouseUp!()
+        self.onTrayIconMouseUp?()
     }
     
     public override func rightMouseDown(with event: NSEvent) {
-        self.onTrayIconRightMouseDown!()
+        self.onTrayIconRightMouseDown?()
     }
     
     public override func rightMouseUp(with event: NSEvent) {
-        self.onTrayIconRightMouseUp!()
+        self.onTrayIconRightMouseUp?()
+    }
+
+    @objc private func statusItemButtonClicked(sender: NSStatusBarButton) {
+        guard let event = NSApp.currentEvent else {
+            return
+        }
+        switch event.type {
+        case .leftMouseDown:
+            onTrayIconMouseDown?()
+        case .leftMouseUp:
+            onTrayIconMouseUp?()
+        case .rightMouseDown:
+            onTrayIconRightMouseDown?()
+        case .rightMouseUp:
+            onTrayIconRightMouseUp?()
+        default:
+            break
+        }
     }
 }
